@@ -1,0 +1,16 @@
+{
+  "name": "zaf-amo-user-info",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "build:dev": "NODE_ENV=development bash scripts/build.sh",
+    "build:prod": "NODE_ENV=production bash scripts/build.sh",
+    "lint": "eslint assets/**/*.js",
+    "lint:fix": "eslint --fix assets/**/*.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

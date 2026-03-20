@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMO Outreach</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="outreach">
+  <div id="app">
+
+    <!-- Top: search form (fixed) -->
+    <div id="top-pane">
+      <div id="state-no-credentials" class="state state-warn hidden">
+        <strong>API credentials not configured.</strong><br>
+        Go to <em>Apps &gt; Manage Apps &gt; AMO User Info &gt; Settings</em>
+        and enter your AMO API key ID and secret.
+      </div>
+
+      <div id="search-form" class="section">
+        <div class="label">Search add-ons</div>
+        <div class="input-row">
+          <input type="text" id="search-q" class="text-input" placeholder="keyword, add-on name, author…">
+          <button id="search-btn" class="btn-primary">Search</button>
+        </div>
+        <div class="search-filters">
+          <div class="filter-row">
+            <select id="filter-type" class="select-input">
+              <option value="">All types</option>
+              <option value="extension">Extension</option>
+              <option value="statictheme">Theme</option>
+              <option value="language">Language pack</option>
+              <option value="dictionary">Dictionary</option>
+            </select>
+            <select id="filter-app" class="select-input">
+              <option value="">All apps</option>
+              <option value="firefox">Firefox</option>
+              <option value="android">Android</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select id="filter-sort" class="select-input">
+              <option value="users">Most users</option>
+              <option value="downloads">Most downloads</option>
+              <option value="rating">Top rated</option>
+              <option value="hotness">Trending</option>
+              <option value="created">Newest</option>
+              <option value="updated">Recently updated</option>
+            </select>
+            <select id="filter-promoted" class="select-input">
+              <option value="">Any status</option>
+              <option value="recommended">Recommended</option>
+              <option value="line">By Firefox</option>
+              <option value="spotlight">Spotlight</option>
+              <option value="strategic">Strategic</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <div class="filter-field">
+              <label class="filter-label" for="filter-min-users">Min users</label>
+              <input type="number" id="filter-min-users" class="text-input" placeholder="e.g. 1000" min="0">
+            </div>
+            <div class="filter-field">
+              <label class="filter-label" for="filter-min-rating">Min rating</label>
+              <input type="number" id="filter-min-rating" class="text-input" placeholder="e.g. 4.0" min="0" max="5" step="0.1">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle: results (scrollable) -->
+    <div id="mid-pane">
+      <div id="search-loading" class="state hidden">
+        <div class="spinner"></div>
+        <span>Searching…</span>
+      </div>
+      <div id="search-error" class="state state-error hidden">
+        <span id="search-error-detail"></span>
+      </div>
+      <div id="results-section" class="hidden">
+        <div class="results-header">
+          <span id="results-count" class="label"></span>
+          <div class="pagination">
+            <button id="page-prev" class="btn-ghost">←</button>
+            <span id="page-info" class="hint"></span>
+            <button id="page-next" class="btn-ghost">→</button>
+          </div>
+        </div>
+        <div id="results-list"></div>
+      </div>
+    </div>
+
+    <!-- Bottom: compose (fixed, shown on selection) -->
+    <div id="bottom-pane" class="hidden">
+      <div class="label">Compose outreach</div>
+      <div id="selected-count" class="hint" style="margin-bottom:8px"></div>
+
+      <div class="compose-field">
+        <label class="filter-label" for="ticket-subject">Subject</label>
+        <input type="text" id="ticket-subject" class="text-input" value="Reaching out about {{addon_name}}">
+      </div>
+      <div class="compose-field">
+        <label class="filter-label" for="ticket-body">Message</label>
+        <textarea id="ticket-body" class="textarea-input" rows="5">Hi {{author_name}},
+
+We're reaching out about your add-on {{addon_name}} on AMO.
+
+</textarea>
+      </div>
+      <div class="hint template-hint">
+        Variables: {{author_name}} {{author_username}} {{addon_name}} {{addon_url}} {{amo_profile_url}}
+      </div>
+
+      <div class="compose-field">
+        <label class="filter-label" for="ticket-brand">Brand</label>
+        <select id="ticket-brand" class="select-input">
+          <option value="">Default brand</option>
+        </select>
+      </div>
+
+      <button id="create-btn" class="btn-primary btn-full">Create tickets</button>
+
+      <div id="create-loading" class="state hidden">
+        <div class="spinner"></div>
+        <span>Creating tickets…</span>
+      </div>
+      <div id="create-results" class="hidden"></div>
+    </div>
+
+  </div>
+
+  <script src="https://static.zdassets.com/zendesk_app_framework_sdk/2.0/zaf_sdk.min.js"></script>
+  <script src="amo-api.js"></script>
+  <script src="navBar.js"></script>
+</body>
+</html>

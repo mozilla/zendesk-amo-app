@@ -1,0 +1,47 @@
+{
+  "name": "{{APP_NAME}}",
+  "author": {
+    "name": "Mozilla AMO Team",
+    "email": "amo-team@mozilla.com",
+    "url": "https://addons.mozilla.org"
+  },
+  "version": "1.0.0",
+  "frameworkVersion": "2.0",
+  "defaultLocale": "en",
+  "icon": "assets/logo.png",
+  "location": {
+    "support": {
+      "ticket_sidebar": {
+        "url": "assets/ticketSidebar.html"
+      },
+      "nav_bar": {
+        "url": "assets/navBar.html",
+        "icon": "assets/icon_nav_bar.svg"
+      }
+    }
+  },
+  "domainWhitelist": ["addons.mozilla.org", "addons.allizom.org", "addons-dev.allizom.org"],
+  "parameters": [
+    {
+      "name": "amoApiKeyId",
+      "type": "text",
+      "secure": false,
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "amoApiSecret",
+      "type": "text",
+      "secure": true,
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "amoBaseUrl",
+      "type": "text",
+      "secure": false,
+      "required": false,
+      "default": "https://addons.mozilla.org"
+    }
+  ]
+}

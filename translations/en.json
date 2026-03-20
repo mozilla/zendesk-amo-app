@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "AMO User Info",
+    "short_description": "Shows AMO profile for the ticket requester.",
+    "long_description": "Looks up the ticket requester on addons.mozilla.org and displays their developer profile, add-on count, and ratings.",
+    "installation_instructions": "Enter your AMO API key ID and secret in the app settings. You can generate API credentials at https://addons.mozilla.org/en-US/developers/addon/api/key/",
+    "parameters": {
+      "amoApiKeyId": {
+        "label": "AMO API Key ID",
+        "helpText": "The JWT issuer key ID from your AMO API credentials page."
+      },
+      "amoApiSecret": {
+        "label": "AMO API Secret",
+        "helpText": "The JWT signing secret from your AMO API credentials page."
+      },
+      "amoBaseUrl": {
+        "label": "AMO Base URL",
+        "helpText": "Override if using a staging instance. Default: https://addons.mozilla.org"
+      }
+    }
+  }
+}

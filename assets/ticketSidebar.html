@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMO User Info</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Ticket info -->
+    <div id="ticket-info" class="section">
+      <div class="label">Requester email</div>
+      <div id="requester-email" class="value monospace">—</div>
+    </div>
+
+    <!-- States -->
+    <div id="state-loading" class="state hidden">
+      <div class="spinner"></div>
+      <span>Loading AMO profile…</span>
+    </div>
+
+    <div id="state-no-credentials" class="state state-warn hidden">
+      <strong>API credentials not configured.</strong><br>
+      Go to <em>Apps &gt; Manage Apps &gt; AMO User Info &gt; Settings</em>
+      and enter your AMO API key ID and secret.
+    </div>
+
+    <div id="state-not-found" class="state state-warn hidden">
+      <strong>User not found on AMO.</strong><br>
+      <span id="not-found-detail"></span>
+    </div>
+
+    <div id="state-error" class="state state-error hidden">
+      <strong>Error</strong><br>
+      <span id="error-detail"></span>
+    </div>
+
+    <!-- User profile card -->
+    <div id="profile-card" class="hidden">
+      <div class="profile-header">
+        <img id="profile-avatar" class="avatar" src="" alt="">
+        <div class="profile-names">
+          <div id="profile-name" class="profile-display-name"></div>
+        </div>
+      </div>
+
+      <div id="profile-badges" class="badges"></div>
+
+      <div class="profile-stats">
+        <div class="stat">
+          <div id="stat-addons" class="stat-value">—</div>
+          <div class="stat-label">Add-ons</div>
+        </div>
+        <div class="stat">
+          <div id="stat-rating" class="stat-value">—</div>
+          <div class="stat-label">Avg rating</div>
+        </div>
+        <div class="stat">
+          <div id="stat-since" class="stat-value">—</div>
+          <div class="stat-label">Member since</div>
+        </div>
+      </div>
+
+      <div id="profile-bio" class="profile-bio hidden"></div>
+
+      <div id="profile-links" class="profile-links"></div>
+
+      <a id="amo-profile-link" class="btn-amo" href="#" target="_blank" rel="noopener">
+        View profile on AMO ↗
+      </a>
+    </div>
+  </div>
+
+  <script src="https://static.zdassets.com/zendesk_app_framework_sdk/2.0/zaf_sdk.min.js"></script>
+  <script src="amo-api.js"></script>
+  <script src="ticketSidebar.js"></script>
+</body>
+</html>
