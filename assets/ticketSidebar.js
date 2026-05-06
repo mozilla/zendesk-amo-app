@@ -111,6 +111,119 @@ class Sidebar {
     document.getElementById('amo-profile-link').href = `${baseUrl}/en-US/firefox/user/${user.id}/`;
 
     this.#show('profile-card');
+
+    this.#renderAddons(amo, user, baseUrl).catch((err) => {
+      console.error('[AMO widget] addon list error:', err);
+    });
+  }
+
+  async #renderAddons(amo, user, baseUrl) {
+    const section  = document.getElementById('addons-section');
+    const list     = document.getElementById('addons-list');
+    const empty    = document.getElementById('addons-empty');
+    const errorEl  = document.getElementById('addons-error');
+    const badge    = document.getElementById('addons-count-badge');
+
+    section.classList.remove('hidden');
+    list.innerHTML = '';
+    empty.classList.add('hidden');
+    errorEl.classList.add('hidden');
+    badge.textContent = '…';
+
+    let data;
+    try {
+      data = await amo.getAddonsByAuthor(user.id);
+    } catch (err) {
+      badge.textContent = '!';
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const results = (data && data.results) || [];
+    badge.textContent = String(results.length);
+
+    if (results.length === 0) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    for (const addon of results) {
+      list.insertAdjacentHTML('beforeend', this.#addonRowHtml(addon, baseUrl));
+    }
+  }
+
+  #addonRowHtml(addon, baseUrl) {
+    const name    = this.#localized(addon.name) || addon.slug || '(unnamed)';
+    const url     = addon.url || `${baseUrl}/en-US/firefox/addon/${encodeURIComponent(addon.slug)}/`;
+    const icon    = addon.icon_url || '';
+    const type    = this.#typeLabel(addon.type);
+    const users   = (addon.average_daily_users ?? 0).toLocaleString();
+    const ratingAvg   = addon.ratings && addon.ratings.average != null
+      ? Number(addon.ratings.average).toFixed(1) : null;
+    const ratingCount = addon.ratings && addon.ratings.count != null
+      ? addon.ratings.count : 0;
+    const version = addon.current_version && addon.current_version.version;
+    const updated = addon.last_updated
+      ? new Date(addon.last_updated).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      : null;
+    const status  = (addon.status && addon.status !== 'public') ? addon.status : null;
+
+    const meta = [];
+    meta.push(`<span>${users} users</span>`);
+    if (ratingAvg) meta.push(`<span>★ ${ratingAvg} (${ratingCount.toLocaleString()})</span>`);
+    if (version)   meta.push(`<span>v${this.#esc(version)}</span>`);
+    if (updated)   meta.push(`<span>${this.#esc(updated)}</span>`);
+
+    const iconImg = icon
+      ? `<img class="addons-list-icon" src="${this.#esc(icon)}" alt="">`
+      : `<div class="addons-list-icon"></div>`;
+
+    const statusBadge = status
+      ? `<span class="addons-status-badge">${this.#esc(status)}</span>`
+      : '';
+
+    return `
+      <div class="addons-list-row">
+        ${iconImg}
+        <div class="addons-list-body">
+          <div class="addons-list-title">
+            <a class="addons-list-name" href="${this.#esc(url)}" target="_blank" rel="noopener" title="${this.#esc(name)}">${this.#esc(name)}</a>
+            <span class="addons-type-badge">${this.#esc(type)}</span>
+            ${statusBadge}
+          </div>
+          <div class="addons-list-meta">${meta.join('<span class="sep">·</span>')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  #localized(field) {
+    if (!field) return '';
+    if (typeof field === 'string') return field;
+    return field['en-US'] ?? Object.values(field)[0] ?? '';
+  }
+
+  #typeLabel(type) {
+    const map = {
+      extension: 'Extension',
+      statictheme: 'Theme',
+      dictionary: 'Dictionary',
+      language: 'Language pack',
+      lpapp: 'Language pack',
+      search: 'Search',
+      siteperm: 'Site permission',
+    };
+    return map[type] || type || '—';
+  }
+
+  #esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   #text(id, value) {

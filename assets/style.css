@@ -231,6 +231,138 @@ body {
 
 .profile-links a:hover { text-decoration: underline; }
 
+/* Add-ons list (collapsible, scrollable) */
+.addons-section {
+  margin-bottom: 10px;
+  border: 1px solid #e9ebed;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.addons-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: #f8f9f9;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f3941;
+}
+
+.addons-summary::-webkit-details-marker { display: none; }
+
+.addons-summary::before {
+  content: "▸";
+  font-size: 10px;
+  color: #68737d;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.addons-section[open] > .addons-summary::before { transform: rotate(90deg); }
+
+.addons-summary:hover { background: #f3f4f4; }
+
+.addons-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #e8f0fe;
+  color: #1557b0;
+}
+
+.addons-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.addons-list-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid #e9ebed;
+}
+
+.addons-list-row:first-child { border-top: none; }
+.addons-list-row:hover { background: #f8f9f9; }
+
+.addons-list-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #e9ebed;
+  object-fit: cover;
+}
+
+.addons-list-body { flex: 1; min-width: 0; }
+
+.addons-list-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.addons-list-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f73b7;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.addons-list-name:hover { text-decoration: underline; }
+
+.addons-type-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #eef0f2;
+  color: #49545c;
+  text-transform: capitalize;
+}
+
+.addons-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #fff0f0;
+  color: #8b1a1a;
+  text-transform: capitalize;
+}
+
+.addons-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #68737d;
+}
+
+.addons-list-meta .sep { color: #c2c8cc; }
+
+.addons-empty,
+.addons-error {
+  padding: 10px;
+  font-size: 12px;
+  color: #68737d;
+  text-align: center;
+}
+
+.addons-error { color: #8b1a1a; }
+
 /* AMO link button */
 .btn-amo {
   display: block;

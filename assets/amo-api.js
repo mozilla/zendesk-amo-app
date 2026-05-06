@@ -45,6 +45,15 @@ class AMOClient {
     return this.#request(`/api/v5/accounts/account/${encodeURIComponent(username)}/`);
   }
 
+  async getAddonsByAuthor(author, { pageSize = 50, sort = 'users' } = {}) {
+    const qs = new URLSearchParams({
+      author: String(author),
+      page_size: String(pageSize),
+      sort,
+    });
+    return this.#request(`/api/v5/addons/search/?${qs}`);
+  }
+
   async searchAddons(params) {
     const qs = new URLSearchParams({ page_size: '20', page: String(params.page || 1) });
     if (params.q)          qs.set('q', params.q);
