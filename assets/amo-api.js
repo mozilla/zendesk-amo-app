@@ -38,7 +38,7 @@ class AMOClient {
 
   async lookupByEmail(email) {
     const data = await this.#request(`/api/v5/accounts/account/lookup/?email=${encodeURIComponent(email)}`);
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    return Array.isArray(data) ? data : [];
   }
 
   async getAccount(username) {

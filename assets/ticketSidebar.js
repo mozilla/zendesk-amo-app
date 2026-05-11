@@ -6,6 +6,10 @@
 'use strict';
 
 class Sidebar {
+  #amo;
+  #baseUrl;
+  #matches;
+
   constructor() {
     this.#show('state-loading');
 
@@ -15,7 +19,7 @@ class Sidebar {
   }
 
   #show(state) {
-    ['state-loading', 'state-no-credentials', 'state-not-found', 'state-error', 'profile-card'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['state-loading', 'state-no-credentials', 'state-not-found', 'state-error', 'state-multi-match', 'profile-card'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById(state).classList.remove('hidden');
   }
 
@@ -47,28 +51,100 @@ class Sidebar {
       return;
     }
 
-    const baseUrl = (settings.amoBaseUrl || 'https://addons.mozilla.org').replace(/\/$/, '');
-    const amo = new AMOClient(client, baseUrl, settings.amoApiKeyId);
+    this.#baseUrl = (settings.amoBaseUrl || 'https://addons.mozilla.org').replace(/\/$/, '');
+    this.#amo = new AMOClient(client, this.#baseUrl, settings.amoApiKeyId);
 
-    let user;
+    let users;
     try {
-      user = await amo.lookupByEmail(requesterEmail);
+      users = await this.#amo.lookupByEmail(requesterEmail);
     } catch (err) {
       this.#text('error-detail', err.message);
       this.#show('state-error');
       return;
     }
 
-    if (!user) {
+    if (users.length === 0) {
       this.#text('not-found-detail', `No AMO account found for "${requesterEmail}".`);
       this.#show('state-not-found');
       return;
+    }
+
+    if (users.length === 1) {
+      this.#renderProfile(users[0], false);
+      return;
+    }
+
+    this.#matches = users;
+    this.#renderMatchList();
+  }
+
+  #renderMatchList() {
+    const users = this.#matches;
+    this.#text('multi-match-count', `${users.length} AMO accounts`);
+
+    const list = document.getElementById('multi-match-list');
+    list.innerHTML = '';
+    users.forEach((user, idx) => {
+      list.insertAdjacentHTML('beforeend', this.#matchRowHtml(user, idx));
+    });
+
+    const activate = (ev) => {
+      const row = ev.target.closest('[data-match-index]');
+      if (!row) return;
+      if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      const user = users[Number(row.dataset.matchIndex)];
+      if (user) this.#renderProfile(user, true);
+    };
+    list.onclick = activate;
+    list.onkeydown = activate;
+
+    this.#show('state-multi-match');
+  }
+
+  #matchRowHtml(user, idx) {
+    const name = this.#esc(user.name || user.username || '(no name)');
+    const addons = user.num_addons_listed ?? 0;
+    const since = user.created ? new Date(user.created).getFullYear() : '—';
+    const avatar = user.picture_url
+      ? `<img class="match-avatar" src="${this.#esc(user.picture_url)}" alt="">`
+      : `<div class="match-avatar"></div>`;
+
+    const meta = [];
+    if (user.username) meta.push(`@${this.#esc(user.username)}`);
+    meta.push(`${addons} add-on${addons === 1 ? '' : 's'}`);
+    meta.push(`since ${since}`);
+    meta.push(`id ${user.id}`);
+
+    return `
+      <div class="match-row" data-match-index="${idx}" role="button" tabindex="0">
+        ${avatar}
+        <div class="match-body">
+          <div class="match-name">${name}</div>
+          <div class="match-meta">${meta.join(' · ')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  #renderProfile(user, showBackLink) {
+    const backLink = document.getElementById('back-to-matches');
+    if (showBackLink) {
+      backLink.classList.remove('hidden');
+      backLink.onclick = (ev) => {
+        ev.preventDefault();
+        this.#renderMatchList();
+      };
+    } else {
+      backLink.classList.add('hidden');
+      backLink.onclick = null;
     }
 
     const avatar = document.getElementById('profile-avatar');
     if (user.picture_url) {
       avatar.src = user.picture_url;
       avatar.alt = user.name;
+      avatar.style.display = '';
     } else {
       avatar.src = '';
       avatar.alt = '';
@@ -108,11 +184,11 @@ class Sidebar {
       );
     }
 
-    document.getElementById('amo-profile-link').href = `${baseUrl}/en-US/firefox/user/${user.id}/`;
+    document.getElementById('amo-profile-link').href = `${this.#baseUrl}/en-US/firefox/user/${user.id}/`;
 
     this.#show('profile-card');
 
-    this.#renderAddons(amo, user, baseUrl).catch((err) => {
+    this.#renderAddons(this.#amo, user, this.#baseUrl).catch((err) => {
       console.error('[AMO widget] addon list error:', err);
     });
   }

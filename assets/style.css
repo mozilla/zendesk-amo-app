@@ -379,6 +379,75 @@ body {
 
 .btn-amo:hover { background: #003eaa; }
 
+/* Multi-match picker */
+.multi-match-header {
+  font-size: 12px;
+  color: #49545c;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: #fff8ed;
+  border: 1px solid #f5a623;
+  border-radius: 6px;
+}
+
+.multi-match-list {
+  border: 1px solid #e9ebed;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid #e9ebed;
+  cursor: pointer;
+}
+
+.match-row:first-child { border-top: none; }
+.match-row:hover,
+.match-row:focus {
+  background: #f3f4f4;
+  outline: none;
+}
+
+.match-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e9ebed;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.match-body { flex: 1; min-width: 0; }
+
+.match-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2f3941;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-meta {
+  font-size: 11px;
+  color: #68737d;
+  margin-top: 2px;
+}
+
+.back-link {
+  display: inline-block;
+  font-size: 12px;
+  color: #1f73b7;
+  text-decoration: none;
+  margin-bottom: 8px;
+}
+
+.back-link:hover { text-decoration: underline; }
+
 /* Utility */
 .hidden { display: none !important; }
 
