@@ -19,7 +19,7 @@ class Sidebar {
   }
 
   #show(state) {
-    ['state-loading', 'state-no-credentials', 'state-not-found', 'state-error', 'state-multi-match', 'profile-card'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['state-loading', 'state-unauthenticated', 'state-no-credentials', 'state-not-found', 'state-error', 'state-multi-match', 'profile-card'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById(state).classList.remove('hidden');
   }
 
@@ -29,6 +29,19 @@ class Sidebar {
 
     const metaData = await client.metadata();
     const settings = metaData.settings || {};
+
+    let channel = '';
+    try {
+      const viaData = await client.get('ticket.via.channel');
+      channel = viaData['ticket.via.channel'] || '';
+    } catch (_) {
+      // ticket context might not be available yet
+    }
+
+    if (channel !== 'api') {
+      this.#show('state-unauthenticated');
+      return;
+    }
 
     let requesterEmail = '';
     try {
