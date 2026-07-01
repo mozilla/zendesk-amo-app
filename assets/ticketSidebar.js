@@ -232,6 +232,10 @@ class Sidebar {
   #addonRowHtml(addon, baseUrl) {
     const name    = this.#localized(addon.name) || addon.slug || '(unnamed)';
     const url     = addon.url || `${baseUrl}/en-US/firefox/addon/${encodeURIComponent(addon.slug)}/`;
+    const addonId = addon.guid || addon.id;
+    const reviewUrl = addonId
+      ? `${this.#reviewersBaseUrl()}/en-US/reviewers/review/${encodeURIComponent(addonId)}`
+      : null;
     const icon    = addon.icon_url || '';
     const type    = this.#typeLabel(addon.type);
     const users   = (addon.average_daily_users ?? 0).toLocaleString();
@@ -259,6 +263,10 @@ class Sidebar {
       ? `<span class="addons-status-badge">${this.#esc(status)}</span>`
       : '';
 
+    const reviewLink = reviewUrl
+      ? `<a class="addons-review-link" href="${this.#esc(reviewUrl)}" target="_blank" rel="noopener" title="Open in review tool">Review tool ↗</a>`
+      : '';
+
     return `
       <div class="addons-list-row">
         ${iconImg}
@@ -269,9 +277,14 @@ class Sidebar {
             ${statusBadge}
           </div>
           <div class="addons-list-meta">${meta.join('<span class="sep">·</span>')}</div>
+          ${reviewLink}
         </div>
       </div>
     `;
+  }
+
+  #reviewersBaseUrl() {
+    return this.#baseUrl.replace(/^(https?:\/\/)/, '$1reviewers.');
   }
 
   #localized(field) {
