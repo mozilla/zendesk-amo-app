@@ -353,6 +353,23 @@ body {
 
 .addons-list-meta .sep { color: #c2c8cc; }
 
+.addons-review-link {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0060df;
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid #d5dce0;
+  border-radius: 8px;
+}
+
+.addons-review-link:hover {
+  background: #f0f5fb;
+  border-color: #0060df;
+}
+
 .addons-empty,
 .addons-error {
   padding: 10px;
