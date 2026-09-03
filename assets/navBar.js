@@ -16,6 +16,10 @@ class NavBar {
   #selected = new Map();
   /** Last resolved author/email rows, ready for CSV download. */
   #exportRows = [];
+  /** Add-ons of the results page currently rendered, by add-on id. */
+  #pageAddons = new Map();
+  /** AMO username → email (or null), an author can own several add-ons. */
+  #emailCache = new Map();
 
   constructor() {
     this.#init().catch((err) => {
@@ -129,34 +133,40 @@ class NavBar {
       return;
     }
 
-    for (const addon of addons) {
-      const author = addon.authors?.[0];
-      if (!author) continue;
+    this.#pageAddons = new Map();
 
-      const addonId    = String(addon.id ?? addon.slug);
-      const addonName  = this.#addonDisplayName(addon);
-      const addonUrl   = `${this.#baseUrl}/addon/${this.#escapeAttr(addon.slug)}/`;
-      const profileUrl = author.url || `${this.#baseUrl}/user/${author.id}/`;
-      const users      = this.#formatNumber(addon.average_daily_users);
-      const rating     = addon.ratings?.average != null
+    for (const addon of addons) {
+      if (!addon.authors?.length) continue;
+
+      const item = {
+        addonId:   String(addon.id ?? addon.slug),
+        addonName: this.#addonDisplayName(addon),
+        addonUrl:  `${this.#baseUrl}/addon/${addon.slug}/`,
+        // An add-on can have several authors (e.g. multi-account-containers):
+        // keep them all, every one of them is a possible outreach target.
+        authors:   addon.authors.map((author) => ({
+          id:         String(author.id),
+          username:   author.username,
+          name:       author.name,
+          profileUrl: author.url || `${this.#baseUrl}/user/${author.id}/`,
+        })),
+      };
+      this.#pageAddons.set(item.addonId, item);
+
+      const users  = this.#formatNumber(addon.average_daily_users);
+      const rating = addon.ratings?.average != null
         ? Number(addon.ratings.average).toFixed(1) : '—';
 
       list.insertAdjacentHTML('beforeend', `
         <label class="addon-item">
           <input type="checkbox" class="addon-checkbox"
-            data-addon-id="${this.#escapeAttr(addonId)}"
-            data-author-id="${this.#escapeAttr(String(author.id))}"
-            data-author-username="${this.#escapeAttr(author.username)}"
-            data-author-name="${this.#escapeAttr(author.name)}"
-            data-addon-name="${this.#escapeAttr(addonName)}"
-            data-addon-url="${this.#escapeAttr(addonUrl)}"
-            data-amo-profile-url="${this.#escapeAttr(profileUrl)}"
-            ${this.#selected.has(addonId) ? 'checked' : ''}
+            data-addon-id="${this.#escapeAttr(item.addonId)}"
+            ${this.#selected.has(item.addonId) ? 'checked' : ''}
           >
           <div class="addon-info">
-            <div class="addon-name">${this.#escapeHtml(addonName)}</div>
+            <div class="addon-name">${this.#escapeHtml(item.addonName)}</div>
             <div class="addon-meta">
-              <span class="addon-author">${this.#escapeHtml(author.name)}</span>
+              <span class="addon-author">${this.#escapeHtml(item.authors.map((a) => a.name).join(', '))}</span>
               <span class="addon-stat">${users} users</span>
               <span class="addon-stat">★ ${rating}</span>
             </div>
@@ -167,17 +177,11 @@ class NavBar {
 
     list.querySelectorAll('.addon-checkbox').forEach((cb) => {
       cb.addEventListener('change', () => {
+        const { addonId } = cb.dataset;
         if (cb.checked) {
-          this.#selected.set(cb.dataset.addonId, {
-            authorId:       cb.dataset.authorId,
-            authorUsername: cb.dataset.authorUsername,
-            authorName:     cb.dataset.authorName,
-            addonName:      cb.dataset.addonName,
-            addonUrl:       cb.dataset.addonUrl,
-            amoProfileUrl:  cb.dataset.amoProfileUrl,
-          });
+          this.#selected.set(addonId, this.#pageAddons.get(addonId));
         } else {
-          this.#selected.delete(cb.dataset.addonId);
+          this.#selected.delete(addonId);
         }
         this.#updateComposeSection();
       });
@@ -185,16 +189,16 @@ class NavBar {
   }
 
   #updateComposeSection() {
-    const sel = this.#getSelectedItems();
-    const unique = this.#getUniqueAuthors(sel);
+    const addonCount = this.#selected.size;
+    const authorCount = this.#getSelectedAuthors().length;
 
-    document.getElementById('create-btn').disabled = unique.length === 0;
-    document.getElementById('export-btn').disabled = unique.length === 0;
-    document.getElementById('clear-selection').classList.toggle('hidden', sel.length === 0);
-    document.getElementById('selected-count').textContent = unique.length === 0
+    document.getElementById('create-btn').disabled = addonCount === 0;
+    document.getElementById('export-btn').disabled = addonCount === 0;
+    document.getElementById('clear-selection').classList.toggle('hidden', addonCount === 0);
+    document.getElementById('selected-count').textContent = addonCount === 0
       ? 'No add-ons selected.'
-      : `${unique.length} unique author${unique.length > 1 ? 's' : ''} selected` +
-        ` (${sel.length} add-on${sel.length > 1 ? 's' : ''})`;
+      : `${addonCount} add-on${addonCount > 1 ? 's' : ''} selected` +
+        ` · ${authorCount} author${authorCount > 1 ? 's' : ''}`;
   }
 
   #clearSelection() {
@@ -211,8 +215,7 @@ class NavBar {
    * ticket. The result is shown as a plain list and offered as a CSV download.
    */
   async #performExportEmails() {
-    const sel = this.#getSelectedItems();
-    const authors = this.#getUniqueAuthors(sel);
+    const authors = this.#getSelectedAuthors();
     if (authors.length === 0) return;
 
     document.getElementById('export-results').classList.add('hidden');
@@ -222,13 +225,8 @@ class NavBar {
     const rows = [];
     const failures = [];
     for (const author of authors) {
-      const addons = sel
-        .filter((item) => item.authorId === author.authorId)
-        .map((item) => item.addonName);
-
       try {
-        const profile = await this.#amo.getAccount(author.authorUsername);
-        const email = profile?.email;
+        const email = await this.#getAuthorEmail(author);
 
         if (!email) {
           failures.push({ author, msg: 'Email not available (requires Users:Lookup permission on AMO)' });
@@ -236,11 +234,11 @@ class NavBar {
         }
 
         rows.push({
-          name:       author.authorName,
-          username:   author.authorUsername,
+          name:       author.name,
+          username:   author.username,
           email,
-          profileUrl: author.amoProfileUrl,
-          addons:     addons.join('; '),
+          profileUrl: author.profileUrl,
+          addons:     author.addons.map((a) => a.addonName).join('; '),
         });
       } catch (err) {
         failures.push({ author, msg: err.message });
@@ -262,7 +260,7 @@ class NavBar {
 
     document.getElementById('export-errors').innerHTML = failures.map(({ author, msg }) => `
       <div class="create-result create-result-err">
-        ✗ <strong>${this.#escapeHtml(author.authorName)}</strong> — ${this.#escapeHtml(msg)}
+        ✗ <strong>${this.#escapeHtml(author.name)}</strong> — ${this.#escapeHtml(msg)}
       </div>
     `).join('');
 
@@ -291,22 +289,60 @@ class NavBar {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  #getSelectedItems() {
-    return Array.from(this.#selected.values());
+  /**
+   * Every author of every selected add-on, deduplicated by AMO account id and
+   * carrying the selected add-ons they are credited on. Co-authors included.
+   */
+  #getSelectedAuthors() {
+    const byId = new Map();
+    for (const addon of this.#selected.values()) {
+      for (const author of addon.authors) {
+        let entry = byId.get(author.id);
+        if (!entry) {
+          entry = { ...author, addons: [] };
+          byId.set(author.id, entry);
+        }
+        entry.addons.push(addon);
+      }
+    }
+    return Array.from(byId.values());
   }
 
-  #getUniqueAuthors(items) {
-    const seen = new Set();
-    return items.filter(({ authorId }) => {
-      if (seen.has(authorId)) return false;
-      seen.add(authorId);
-      return true;
-    });
+  /**
+   * One ticket per primary author (the first author of an add-on); the other
+   * authors of their selected add-ons ride along as CCs.
+   */
+  #getTicketGroups() {
+    const byPrimary = new Map();
+    for (const addon of this.#selected.values()) {
+      const [primary, ...coAuthors] = addon.authors;
+
+      let group = byPrimary.get(primary.id);
+      if (!group) {
+        group = { primary, addons: [], coAuthors: new Map() };
+        byPrimary.set(primary.id, group);
+      }
+      group.addons.push(addon);
+      for (const co of coAuthors) {
+        if (co.id !== primary.id) group.coAuthors.set(co.id, co);
+      }
+    }
+    return Array.from(byPrimary.values());
+  }
+
+  async #getAuthorEmail(author) {
+    if (this.#emailCache.has(author.username)) {
+      return this.#emailCache.get(author.username);
+    }
+    const profile = await this.#amo.getAccount(author.username);
+    const email = profile?.email || null;
+    this.#emailCache.set(author.username, email);
+    return email;
   }
 
   async #performCreateTickets() {
-    const authors = this.#getUniqueAuthors(this.#getSelectedItems());
-    if (authors.length === 0) return;
+    const groups = this.#getTicketGroups();
+    if (groups.length === 0) return;
 
     const subjectTmpl = document.getElementById('ticket-subject').value;
     const bodyTmpl    = document.getElementById('ticket-body').value;
@@ -316,22 +352,35 @@ class NavBar {
     document.getElementById('create-btn').disabled = true;
 
     const results = [];
-    for (const author of authors) {
+    for (const { primary, addons, coAuthors } of groups) {
       try {
-        const profile = await this.#amo.getAccount(author.authorUsername);
-        const email = profile?.email;
+        const email = await this.#getAuthorEmail(primary);
 
         if (!email) {
-          results.push({ author, ok: false, msg: 'Email not available (requires Users:Lookup permission on AMO)' });
+          results.push({ name: primary.name, ok: false, msg: 'Email not available (requires Users:Lookup permission on AMO)' });
           continue;
         }
 
+        // Co-authors of the selected add-ons are CC'd; the ones whose email
+        // cannot be resolved are simply left out and reported.
+        const collaborators = [];
+        const ccSkipped = [];
+        for (const co of coAuthors.values()) {
+          try {
+            const coEmail = await this.#getAuthorEmail(co);
+            if (coEmail) collaborators.push({ name: co.name, email: coEmail });
+            else ccSkipped.push(co.name);
+          } catch (_) {
+            ccSkipped.push(co.name);
+          }
+        }
+
         const vars = {
-          author_name:     author.authorName,
-          author_username: author.authorUsername,
-          addon_name:      author.addonName,
-          addon_url:       author.addonUrl,
-          amo_profile_url: author.amoProfileUrl,
+          author_name:     primary.name,
+          author_username: primary.username,
+          addon_name:      addons[0].addonName,
+          addon_url:       addons[0].addonUrl,
+          amo_profile_url: primary.profileUrl,
         };
 
         await this.#client.request({
@@ -340,10 +389,11 @@ class NavBar {
           contentType: 'application/json',
           data: JSON.stringify({
             ticket: {
-              requester: { email, name: author.authorName },
+              requester: { email, name: primary.name },
               subject:   this.#applyTemplate(subjectTmpl, vars),
               comment:   { body: this.#applyTemplate(bodyTmpl, vars) },
               tags:      ['amo-outreach'],
+              ...(collaborators.length ? { collaborators } : {}),
               ...(document.getElementById('ticket-brand').value
                 ? { brand_id: Number(document.getElementById('ticket-brand').value) }
                 : {}),
@@ -351,9 +401,12 @@ class NavBar {
           }),
         });
 
-        results.push({ author, ok: true });
+        const notes = [];
+        if (collaborators.length) notes.push(`${collaborators.length} in CC`);
+        if (ccSkipped.length) notes.push(`no email for ${ccSkipped.join(', ')}`);
+        results.push({ name: primary.name, ok: true, msg: notes.join(', ') });
       } catch (err) {
-        results.push({ author, ok: false, msg: err.message });
+        results.push({ name: primary.name, ok: false, msg: err.message });
       }
     }
 
@@ -361,10 +414,10 @@ class NavBar {
     this.#updateComposeSection();
 
     const resultsEl = document.getElementById('create-results');
-    resultsEl.innerHTML = results.map(({ author, ok, msg }) => `
+    resultsEl.innerHTML = results.map(({ name, ok, msg }) => `
       <div class="create-result ${ok ? 'create-result-ok' : 'create-result-err'}">
-        ${ok ? '✓' : '✗'} <strong>${this.#escapeHtml(author.authorName)}</strong>
-        ${ok ? '— ticket created' : `— ${this.#escapeHtml(msg)}`}
+        ${ok ? '✓' : '✗'} <strong>${this.#escapeHtml(name)}</strong>
+        ${ok ? `— ticket created${msg ? ` (${this.#escapeHtml(msg)})` : ''}` : `— ${this.#escapeHtml(msg)}`}
       </div>
     `).join('');
     resultsEl.classList.remove('hidden');
