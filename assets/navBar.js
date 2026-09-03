@@ -12,6 +12,10 @@ class NavBar {
   #currentPage = 1;
   #currentParams = {};
   #totalCount = 0;
+  /** Selected add-ons, by add-on id — kept across pages and searches. */
+  #selected = new Map();
+  /** Last resolved author/email rows, ready for CSV download. */
+  #exportRows = [];
 
   constructor() {
     this.#init().catch((err) => {
@@ -20,16 +24,20 @@ class NavBar {
   }
 
   async #init() {
-    this.#client = ZAFClient.init();
-    const metaData = await this.#client.metadata();
-    const settings = metaData.settings || {};
-    this.#baseUrl = (settings.amoBaseUrl || 'https://addons.mozilla.org').replace(/\/$/, '');
+    // Outside Zendesk (plain browser, for layout debugging) there is no client:
+    // search still works, it only uses the public AMO API.
+    this.#client = ZAFClient.init() || null;
 
-    await this.#client.invoke('resize', { width: '460px' });
+    let settings = {};
+    if (this.#client) {
+      const metaData = await this.#client.metadata();
+      settings = metaData.settings || {};
+      await this.#client.invoke('resize', { width: '100%' });
+    }
+    this.#baseUrl = (settings.amoBaseUrl || 'https://addons.mozilla.org').replace(/\/$/, '');
 
     if (!settings.amoApiKeyId) {
       document.getElementById('state-no-credentials').classList.remove('hidden');
-      return;
     }
 
     this.#amo = new AMOClient(this.#client, this.#baseUrl, settings.amoApiKeyId);
@@ -43,11 +51,15 @@ class NavBar {
     document.getElementById('page-prev').addEventListener('click', () => this.#performSearch(this.#currentPage - 1));
     document.getElementById('page-next').addEventListener('click', () => this.#performSearch(this.#currentPage + 1));
     document.getElementById('create-btn').addEventListener('click', () => this.#performCreateTickets());
+    document.getElementById('clear-selection').addEventListener('click', () => this.#clearSelection());
+    document.getElementById('export-btn').addEventListener('click', () => this.#performExportEmails());
+    document.getElementById('export-download').addEventListener('click', () => this.#downloadCsv());
   }
 
   async #loadBrands() {
     const select = document.getElementById('ticket-brand');
     try {
+      if (!this.#client) throw new Error('no ZAF client');
       const data = await this.#client.request({ url: '/api/v2/brands.json', type: 'GET' });
       const brands = (data.brands || []).filter((b) => b.active);
       for (const brand of brands) {
@@ -71,7 +83,6 @@ class NavBar {
     this.#currentParams = { ...this.#getSearchParams(), page };
 
     document.getElementById('results-section').classList.add('hidden');
-    document.getElementById('bottom-pane').classList.add('hidden');
     document.getElementById('search-error').classList.add('hidden');
     document.getElementById('search-loading').classList.remove('hidden');
 
@@ -89,6 +100,7 @@ class NavBar {
       document.getElementById('page-next').disabled = page >= totalPages;
 
       this.#renderResultsList(data.results || []);
+      this.#updateComposeSection();
     } catch (err) {
       document.getElementById('search-loading').classList.add('hidden');
       document.getElementById('search-error').classList.remove('hidden');
@@ -121,6 +133,7 @@ class NavBar {
       const author = addon.authors?.[0];
       if (!author) continue;
 
+      const addonId    = String(addon.id ?? addon.slug);
       const addonName  = this.#addonDisplayName(addon);
       const addonUrl   = `${this.#baseUrl}/addon/${this.#escapeAttr(addon.slug)}/`;
       const profileUrl = author.url || `${this.#baseUrl}/user/${author.id}/`;
@@ -131,12 +144,14 @@ class NavBar {
       list.insertAdjacentHTML('beforeend', `
         <label class="addon-item">
           <input type="checkbox" class="addon-checkbox"
+            data-addon-id="${this.#escapeAttr(addonId)}"
             data-author-id="${this.#escapeAttr(String(author.id))}"
             data-author-username="${this.#escapeAttr(author.username)}"
             data-author-name="${this.#escapeAttr(author.name)}"
             data-addon-name="${this.#escapeAttr(addonName)}"
             data-addon-url="${this.#escapeAttr(addonUrl)}"
             data-amo-profile-url="${this.#escapeAttr(profileUrl)}"
+            ${this.#selected.has(addonId) ? 'checked' : ''}
           >
           <div class="addon-info">
             <div class="addon-name">${this.#escapeHtml(addonName)}</div>
@@ -151,32 +166,133 @@ class NavBar {
     }
 
     list.querySelectorAll('.addon-checkbox').forEach((cb) => {
-      cb.addEventListener('change', () => this.#updateComposeSection());
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          this.#selected.set(cb.dataset.addonId, {
+            authorId:       cb.dataset.authorId,
+            authorUsername: cb.dataset.authorUsername,
+            authorName:     cb.dataset.authorName,
+            addonName:      cb.dataset.addonName,
+            addonUrl:       cb.dataset.addonUrl,
+            amoProfileUrl:  cb.dataset.amoProfileUrl,
+          });
+        } else {
+          this.#selected.delete(cb.dataset.addonId);
+        }
+        this.#updateComposeSection();
+      });
     });
   }
 
   #updateComposeSection() {
-    const unique = this.#getUniqueAuthors(this.#getSelectedItems());
-    if (unique.length === 0) {
-      document.getElementById('bottom-pane').classList.add('hidden');
-      return;
-    }
     const sel = this.#getSelectedItems();
-    document.getElementById('bottom-pane').classList.remove('hidden');
-    document.getElementById('selected-count').textContent =
-      `${unique.length} unique author${unique.length > 1 ? 's' : ''} selected` +
-      ` (${sel.length} add-on${sel.length > 1 ? 's' : ''})`;
+    const unique = this.#getUniqueAuthors(sel);
+
+    document.getElementById('create-btn').disabled = unique.length === 0;
+    document.getElementById('export-btn').disabled = unique.length === 0;
+    document.getElementById('clear-selection').classList.toggle('hidden', sel.length === 0);
+    document.getElementById('selected-count').textContent = unique.length === 0
+      ? 'No add-ons selected.'
+      : `${unique.length} unique author${unique.length > 1 ? 's' : ''} selected` +
+        ` (${sel.length} add-on${sel.length > 1 ? 's' : ''})`;
+  }
+
+  #clearSelection() {
+    this.#selected.clear();
+    document.querySelectorAll('.addon-checkbox:checked').forEach((cb) => {
+      cb.checked = false;
+    });
+    document.getElementById('export-results').classList.add('hidden');
+    this.#updateComposeSection();
+  }
+
+  /**
+   * Resolves the email address of every selected author, without creating any
+   * ticket. The result is shown as a plain list and offered as a CSV download.
+   */
+  async #performExportEmails() {
+    const sel = this.#getSelectedItems();
+    const authors = this.#getUniqueAuthors(sel);
+    if (authors.length === 0) return;
+
+    document.getElementById('export-results').classList.add('hidden');
+    document.getElementById('export-loading').classList.remove('hidden');
+    document.getElementById('export-btn').disabled = true;
+
+    const rows = [];
+    const failures = [];
+    for (const author of authors) {
+      const addons = sel
+        .filter((item) => item.authorId === author.authorId)
+        .map((item) => item.addonName);
+
+      try {
+        const profile = await this.#amo.getAccount(author.authorUsername);
+        const email = profile?.email;
+
+        if (!email) {
+          failures.push({ author, msg: 'Email not available (requires Users:Lookup permission on AMO)' });
+          continue;
+        }
+
+        rows.push({
+          name:       author.authorName,
+          username:   author.authorUsername,
+          email,
+          profileUrl: author.amoProfileUrl,
+          addons:     addons.join('; '),
+        });
+      } catch (err) {
+        failures.push({ author, msg: err.message });
+      }
+    }
+
+    document.getElementById('export-loading').classList.add('hidden');
+    this.#updateComposeSection();
+    this.#renderExportResults(rows, failures);
+  }
+
+  #renderExportResults(rows, failures) {
+    this.#exportRows = rows;
+
+    document.getElementById('export-count').textContent =
+      `${rows.length} email address${rows.length === 1 ? '' : 'es'}`;
+    document.getElementById('export-download').disabled = rows.length === 0;
+    document.getElementById('export-list').value = rows.map((r) => r.email).join('\n');
+
+    document.getElementById('export-errors').innerHTML = failures.map(({ author, msg }) => `
+      <div class="create-result create-result-err">
+        ✗ <strong>${this.#escapeHtml(author.authorName)}</strong> — ${this.#escapeHtml(msg)}
+      </div>
+    `).join('');
+
+    document.getElementById('export-results').classList.remove('hidden');
+  }
+
+  #downloadCsv() {
+    if (this.#exportRows.length === 0) return;
+
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      ['name', 'username', 'email', 'amo_profile_url', 'selected_addons'].join(','),
+      ...this.#exportRows.map((r) => [r.name, r.username, r.email, r.profileUrl, r.addons].map(esc).join(',')),
+    ].join('\n');
+
+    // Leading BOM so spreadsheets read the file as UTF-8.
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `amo-outreach-emails-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Give the download a chance to start before dropping the blob.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   #getSelectedItems() {
-    return Array.from(document.querySelectorAll('.addon-checkbox:checked')).map((cb) => ({
-      authorId:       cb.dataset.authorId,
-      authorUsername: cb.dataset.authorUsername,
-      authorName:     cb.dataset.authorName,
-      addonName:      cb.dataset.addonName,
-      addonUrl:       cb.dataset.addonUrl,
-      amoProfileUrl:  cb.dataset.amoProfileUrl,
-    }));
+    return Array.from(this.#selected.values());
   }
 
   #getUniqueAuthors(items) {
@@ -206,7 +322,7 @@ class NavBar {
         const email = profile?.email;
 
         if (!email) {
-          results.push({ author, ok: false, msg: 'Email not available (requires Users:Edit permission on AMO)' });
+          results.push({ author, ok: false, msg: 'Email not available (requires Users:Lookup permission on AMO)' });
           continue;
         }
 
@@ -242,7 +358,7 @@ class NavBar {
     }
 
     document.getElementById('create-loading').classList.add('hidden');
-    document.getElementById('create-btn').disabled = false;
+    this.#updateComposeSection();
 
     const resultsEl = document.getElementById('create-results');
     resultsEl.innerHTML = results.map(({ author, ok, msg }) => `
